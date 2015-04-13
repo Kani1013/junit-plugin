@@ -23,7 +23,9 @@
  */
 package hudson.tasks.junit;
 
+import groovy.json.StringEscapeUtils;
 import hudson.util.TextFile;
+
 import org.apache.commons.io.FileUtils;
 import org.jvnet.localizer.Localizable;
 
@@ -31,6 +33,7 @@ import hudson.model.Run;
 import hudson.tasks.test.TestResult;
 
 import org.dom4j.Element;
+import org.dom4j.Node;
 import org.kohsuke.stapler.export.Exported;
 
 import java.io.File;
@@ -42,6 +45,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.logging.Logger;
 
+import junit.framework.TestCase;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 
@@ -69,9 +73,12 @@ public class CaseResult extends TestResult implements Comparable<CaseResult> {
     private final String skippedMessage;
     private final String errorStackTrace;
     private final String errorDetails;
+    private String expectedValue = "";
+    private String actualValue = "";
     private transient SuiteResult parent;
 
     private transient ClassResult classResult;
+    
 
     /**
      * Some tools report stdout and stderr at testcase level (such as Maven surefire plugin), others do so at
@@ -123,6 +130,8 @@ public class CaseResult extends TestResult implements Comparable<CaseResult> {
             there's some odd-ball cases where testClassName is null but
             @name contains fully qualified name.
          */
+
+    	
         String nameAttr = testCase.attributeValue("name");
         if(testClassName==null && nameAttr.contains(".")) {
             testClassName = nameAttr.substring(0,nameAttr.lastIndexOf('.'));
@@ -141,6 +150,16 @@ public class CaseResult extends TestResult implements Comparable<CaseResult> {
         Collection<CaseResult> _this = Collections.singleton(this);
         stdout = possiblyTrimStdio(_this, keepLongStdio, testCase.elementText("system-out"));
         stderr = possiblyTrimStdio(_this, keepLongStdio, testCase.elementText("system-err"));
+        Node selectExpected = testCase.selectSingleNode("failure/expected");
+        if (selectExpected != null) {
+        	expectedValue = selectExpected.getStringValue();
+        }
+        Node selectActual = testCase.selectSingleNode("failure/actual");
+        if (selectActual != null) {
+        	actualValue = selectActual.getStringValue();
+        }
+		
+        
     }
 
     static String possiblyTrimStdio(Collection<CaseResult> results, boolean keepLongStdio, String stdio) { // HUDSON-6516
@@ -218,6 +237,8 @@ public class CaseResult extends TestResult implements Comparable<CaseResult> {
         this.duration = 0.0f;
         this.skipped = false;
         this.skippedMessage = null;
+        this.expectedValue = null;
+        this.actualValue = null;
     }
     
     public ClassResult getParent() {
@@ -362,6 +383,28 @@ public class CaseResult extends TestResult implements Comparable<CaseResult> {
     public int getPassCount() {
         return isPassed() ? 1 : 0;
     }
+    
+    @Exported
+    public String getNeedDiffTool() {
+    	if ( getExpectedValue() ==  getActualValue() ) {
+    		return "";
+    	} 
+    	else {
+    		return "true";
+    	}
+    		
+    }
+    
+    @Exported
+    public String getExpectedValue() {
+    	return StringEscapeUtils.escapeJavaScript(expectedValue);
+    }
+    
+    @Exported
+    public String getActualValue() {
+    	return StringEscapeUtils.escapeJavaScript(actualValue);
+    }
+    
 
     /**
      * If this test failed, then return the build number
