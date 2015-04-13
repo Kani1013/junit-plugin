@@ -386,7 +386,7 @@ public class CaseResult extends TestResult implements Comparable<CaseResult> {
     
     @Exported
     public String getNeedDiffTool() {
-    	if ( getExpectedValue() ==  getActualValue() ) {
+    	if ( getExpectedValue().equals(getActualValue()) ) {
     		return "";
     	} 
     	else {
